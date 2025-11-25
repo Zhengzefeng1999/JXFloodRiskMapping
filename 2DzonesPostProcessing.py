@@ -7,7 +7,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 def extract_shp_to_excel(main_folder, output_file):
-    """改进后的功能函数：提取shp文件到Excel，支持多种编码格式"""
+    """改进后的功能函数：提取shp文件到Excel，包含指定列和计算列"""
+    # 定义需要提取的原始列
+    required_columns = ['element_no', 'AREA2D', 'DEPTH2D', 'T_FLOOD_DU', 'T_INUDATIO', 'T_PEAK_2D']
+    
     # 创建Excel写入对象
     writer = pd.ExcelWriter(output_file, engine='openpyxl')
     
@@ -35,11 +38,33 @@ def extract_shp_to_excel(main_folder, output_file):
             if gdf is None:
                 raise last_error
                 
-            # 移除几何列并写入Excel
+            # 移除几何列
             df = pd.DataFrame(gdf.drop(columns='geometry'))
-            df.to_excel(writer, sheet_name='Main_Folder', index=False)
-            processed_count += 1
-            print("成功处理主文件夹中的SHP文件")
+            
+            # 只保留指定的列，如果列不存在则跳过
+            available_columns = [col for col in required_columns if col in df.columns]
+            if available_columns:
+                df_filtered = df[available_columns].copy()
+                
+                # 添加计算列
+                if 'AREA2D' in df_filtered.columns:
+                    df_filtered['淹没面积(km2)'] = df_filtered['AREA2D'] / 1000000
+                if 'DEPTH2D' in df_filtered.columns:
+                    df_filtered['淹没水深(m)'] = df_filtered['DEPTH2D']
+                if 'T_FLOOD_DU' in df_filtered.columns:
+                    df_filtered['淹没历时(h)'] = df_filtered['T_FLOOD_DU'] / 3600
+                if 'T_INUDATIO' in df_filtered.columns:
+                    df_filtered['洪水到达时间(h)'] = df_filtered['T_INUDATIO'] / 3600
+                
+                df_filtered.to_excel(writer, sheet_name='Main_Folder', index=False)
+                processed_count += 1
+                print(f"成功处理主文件夹中的SHP文件，提取列: {available_columns}")
+            else:
+                # 如果没有指定的列，创建一个包含提示信息的工作表
+                warning_df = pd.DataFrame({'提示': ['未找到指定的列']})
+                warning_df.to_excel(writer, sheet_name='Main_Folder', index=False)
+                print("主文件夹中的SHP文件未包含指定的列")
+                
         except Exception as e:
             print(f"处理主文件夹中的SHP文件时发生错误：{str(e)}")
     else:
@@ -77,14 +102,33 @@ def extract_shp_to_excel(main_folder, output_file):
                 if gdf is None:
                     raise last_error
                 
-                # 移除几何列（如果需要保留可以注释这行）
+                # 移除几何列
                 df = pd.DataFrame(gdf.drop(columns='geometry'))
                 
-                # 将数据写入Excel的sheet
-                df.to_excel(writer, sheet_name=folder_name, index=False)
-                processed_count += 1
-                
-                print(f"成功处理文件夹：{folder_name}")
+                # 只保留指定的列，如果列不存在则跳过
+                available_columns = [col for col in required_columns if col in df.columns]
+                if available_columns:
+                    df_filtered = df[available_columns].copy()
+                    
+                    # 添加计算列
+                    if 'AREA2D' in df_filtered.columns:
+                        df_filtered['淹没面积(km2)'] = df_filtered['AREA2D'] / 1000000
+                    if 'DEPTH2D' in df_filtered.columns:
+                        df_filtered['淹没水深(m)'] = df_filtered['DEPTH2D']
+                    if 'T_FLOOD_DU' in df_filtered.columns:
+                        df_filtered['淹没历时(h)'] = df_filtered['T_FLOOD_DU'] / 3600
+                    if 'T_INUDATIO' in df_filtered.columns:
+                        df_filtered['洪水到达时间(h)'] = df_filtered['T_INUDATIO'] / 3600
+                    
+                    # 将数据写入Excel的sheet
+                    df_filtered.to_excel(writer, sheet_name=folder_name, index=False)
+                    processed_count += 1
+                    print(f"成功处理文件夹：{folder_name}，提取列: {available_columns}")
+                else:
+                    # 如果没有指定的列，创建一个包含提示信息的工作表
+                    warning_df = pd.DataFrame({'提示': ['未找到指定的列']})
+                    warning_df.to_excel(writer, sheet_name=folder_name, index=False)
+                    print(f"文件夹 {folder_name} 中的SHP文件未包含指定的列")
                 
             except Exception as e:
                 print(f"处理 {folder_name} 时发生错误：{str(e)}")
