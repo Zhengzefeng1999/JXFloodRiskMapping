@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 def extract_shp_to_excel(main_folder, output_file):
-    """原始功能函数：提取shp文件到Excel"""
+    """改进后的功能函数：提取shp文件到Excel，支持多种编码格式"""
     # 创建Excel写入对象
     writer = pd.ExcelWriter(output_file, engine='openpyxl')
     
@@ -18,8 +18,24 @@ def extract_shp_to_excel(main_folder, output_file):
     shp_path = os.path.join(main_folder, "2D Zones.shp")
     if os.path.exists(shp_path):
         try:
-            # 直接处理主文件夹中的SHP文件
-            gdf = gpd.read_file(shp_path)
+            # 尝试不同的编码格式读取SHP文件
+            encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
+            gdf = None
+            last_error = None
+            
+            for encoding in encodings:
+                try:
+                    gdf = gpd.read_file(shp_path, encoding=encoding)
+                    print(f"使用编码 {encoding} 成功读取主文件夹中的SHP文件")
+                    break
+                except Exception as e:
+                    last_error = e
+                    continue
+                    
+            if gdf is None:
+                raise last_error
+                
+            # 移除几何列并写入Excel
             df = pd.DataFrame(gdf.drop(columns='geometry'))
             df.to_excel(writer, sheet_name='Main_Folder', index=False)
             processed_count += 1
@@ -44,8 +60,22 @@ def extract_shp_to_excel(main_folder, output_file):
                 continue
                 
             try:
-                # 读取shp文件并转换为DataFrame
-                gdf = gpd.read_file(shp_path)
+                # 尝试不同的编码格式读取SHP文件
+                encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
+                gdf = None
+                last_error = None
+                
+                for encoding in encodings:
+                    try:
+                        gdf = gpd.read_file(shp_path, encoding=encoding)
+                        print(f"使用编码 {encoding} 成功读取文件夹 {folder_name} 中的SHP文件")
+                        break
+                    except Exception as e:
+                        last_error = e
+                        continue
+                        
+                if gdf is None:
+                    raise last_error
                 
                 # 移除几何列（如果需要保留可以注释这行）
                 df = pd.DataFrame(gdf.drop(columns='geometry'))
@@ -198,7 +228,10 @@ class SHPExtractorApp:
             # 显示在日志区域
             self.log_text.insert(tk.END, output_text)
             self.log_text.insert(tk.END, "\n" + result)
-            self.log_text.see(tk.END)
+            self.log_text.see(tk.END)  # 自动滚动到底部
+            
+            # 强制更新界面
+            self.log_text.update_idletasks()
             
             # 显示完成消息
             messagebox.showinfo("完成", "文件提取完成！")
@@ -209,6 +242,9 @@ class SHPExtractorApp:
             
             error_msg = f"处理过程中发生错误: {str(e)}"
             self.log_text.insert(tk.END, error_msg)
+            self.log_text.see(tk.END)  # 自动滚动到底部
+            # 强制更新界面
+            self.log_text.update_idletasks()
             messagebox.showerror("错误", error_msg)
 
 def main():
